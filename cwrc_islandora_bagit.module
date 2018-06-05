@@ -1,0 +1,481 @@
+<?php
+
+/**
+ * @file
+ * For the CWRC Islandora BagIt module.
+ */
+
+define('CWRC_ISLANDORA_BAGIT_MAX_CHILDREN', 100);
+// 2147483648 = 2GB.
+define('CWRC_ISLANDORA_BAGIT_MAX_COLLECTION_SIZE', 2147483648);
+
+module_load_include('inc', 'cwrc_islandora_bagit', 'cwrc_islandora_bagit.theme');
+
+/**
+ * Implements hook_element_info().
+ */
+function cwrc_islandora_bagit_element_info() {
+  $types = array(
+    'io_checkbox_tree' => array(
+      '#input' => TRUE,
+      '#process' => array('cwrc_islandora_bagit_process_checkbox_tree'),
+      '#theme' => array('io_checkbox_tree'),
+      '#pre_render' => array('form_pre_render_conditional_form_element'),
+    ),
+    'io_checkbox_tree_level' => array(
+      '#input' => FALSE,
+      '#theme' => array('io_checkbox_tree_level'),
+      '#pre_render' => array('form_pre_render_conditional_form_element'),
+    ),
+    'io_checkbox_tree_item' => array(
+      '#input' => FALSE,
+      '#theme' => array('io_checkbox_tree_item'),
+      '#pre_render' => array('form_pre_render_conditional_form_element'),
+    ),
+    'io_checkbox_tree_label' => array(
+      '#input' => FALSE,
+      '#theme' => array('io_checkbox_tree_label'),
+      '#pre_render' => array('form_pre_render_conditional_form_element'),
+    ),
+  );
+
+  return $types;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function cwrc_islandora_bagit_theme($existing, $type, $theme, $path) {
+  return array(
+    'io_checkbox_tree' => array(
+      'render element' => 'element',
+    ),
+    'io_checkbox_tree_level' => array(
+      'render element' => 'element',
+    ),
+    'io_checkbox_tree_item' => array(
+      'render element' => 'element',
+    ),
+    'io_checkbox_tree_label' => array(
+      'render element' => 'element',
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function cwrc_islandora_bagit_menu_alter(&$items) {
+  if (!empty($items['islandora/object/%islandora_object/manage/bagit'])) {
+    $bagit = &$items['islandora/object/%islandora_object/manage/bagit'];
+    $bagit['page callback'] = 'drupal_get_form';
+    $bagit['page arguments'] = array('cwrc_islandora_bagit_create_bag_form', 2);
+    $bagit['file'] = 'cwrc_islandora_bagit.form.inc';
+    $bagit['file path'] = drupal_get_path('module', 'cwrc_islandora_bagit');
+  }
+}
+
+function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed, $filter, $label, $default = array(), $initial = FALSE, $processed = array()) {
+  $members = _cwrc_islandora_bagit_get_object_children($islandora_object);
+  $id = $islandora_object->id;
+  $islandora_object->COLLECTION_MEMBERS_COUNT = count($members);
+  $result = array();
+
+  if ($islandora_object->COLLECTION_MEMBERS_COUNT <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN && !in_array($id, $processed)) {
+    array_push($processed, $id);
+    if ($filter !== '') {
+      foreach ($allowed as $k => $v) {
+        if (array_key_exists($k, $members)) {
+          $member = &$members[$k];
+          if ($member) {
+            $children = array();
+            if (
+              _cwrc_islandora_bagit_object_is_collection_policy($member) ||
+              _cwrc_islandora_bagit_object_is_paged_content($member)
+            ) {
+              $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed);
+            }
+            if (is_array($children)) {
+              $member->children = $children;
+              $member->children_selected = _cwrc_islandora_bagit_object_children_selected($member, $default);
+            }
+            else {
+              $member->children_selected = FALSE;
+            }
+            $member->TEST = $label;
+            array_push($result, $member);
+          }
+        }
+      }
+    }
+    else {
+      foreach ($members as $member) {
+        if ($filter === '' || array_key_exists($member->id, $allowed)) {
+          $children = [];
+          if (
+            _cwrc_islandora_bagit_object_is_collection_policy($member) ||
+            _cwrc_islandora_bagit_object_is_paged_content($member)
+          ) {
+            $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed);
+          }
+          if (is_array($children)) {
+            $member->children = $children;
+            $member->children_selected = _cwrc_islandora_bagit_object_children_selected($member, $default);
+          }
+          else {
+            $member->children_selected = FALSE;
+          }
+          $member->TEST = $label;
+          array_push($result, $member);
+        }
+      }
+    }
+  }
+  elseif (!$initial) {
+
+  }
+
+  return $result;
+}
+
+function _cwrc_islandora_bagit_object_children_selected($object_members, $default) {
+  foreach ($object_members->children as $member) {
+    if (isset($default[$member->id]) || $member->children_selected) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+function _cwrc_islandora_bagit_get_object_children($object) {
+  module_load_include('inc', 'islandora_plotit', 'includes/voyant_helpers');
+  $ri_result = NULL;
+  islandora_cwrc_voyant_get_members_via_ri($object, $ri_result);
+
+  $objects = array();
+  if (!empty($ri_result)) {
+    if (count($ri_result) <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN) {
+      foreach ($ri_result as $result) {
+        if (!empty($result['object']['type']) && $result['object']['type'] == 'pid') {
+          $pid = $result['object']['value'];
+          $objects[$pid] = islandora_object_load($pid);
+        }
+      }
+    }
+    else {
+      $objects = array_map(function ($ri_result) {
+        return $ri_result['object']['value'];
+      }, $ri_result);
+    }
+  }
+  elseif (_cwrc_islandora_bagit_object_is_paged_content($object)) {
+    module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
+    $ri_result = islandora_paged_content_get_pages_ri($object);
+    if (count($ri_result) <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN) {
+      foreach ($ri_result as $result) {
+        if (!empty($result['pid'])) {
+          $pid = $result['pid'];
+          $objects[$pid] = islandora_object_load($pid);
+        }
+      }
+    }
+    else {
+      $objects = array_map(function ($ri_result) {
+        return $ri_result['pid'];
+      }, $ri_result);
+    }
+  }
+  return $objects;
+}
+
+/**
+ * Converts a list of member objects to a key/value list of options.
+ *
+ * @param array $members
+ *   Members Objects.
+ *
+ * @return array
+ *   A key/value array of member objects (id => label)
+ */
+function _cwrc_islandora_bagit_get_options(array $members) {
+  $options = array();
+
+  if (is_array($members) && count($members) > 0) {
+    foreach ($members as $member) {
+      $options[$member->id] = $member->label;
+      $options += _cwrc_islandora_bagit_get_options($member->children);
+    }
+  }
+  return $options;
+}
+
+function _cwrc_islandora_bagit_get_object_datastreams_human_readable_size($islandora_object) {
+  $size = 0;
+  module_load_include('inc', 'islandora', 'includes/utilities');
+  foreach ($islandora_object as $ds) {
+    if ($ds->controlGroup == 'M' || $ds->controlGroup == 'X') {
+      $size += $ds->size;
+    }
+  }
+
+  if ($size) {
+    $size_arr = array(
+      'human' => islandora_convert_bytes_to_human_readable($size),
+      'raw' => $size,
+    );
+  }
+  else {
+    $size_arr = array(
+      'human' => 'n/a',
+      'raw' => 0,
+    );
+  }
+  return $size_arr;
+}
+
+/**
+ * Recursively go through the option tree and return a flat array of options.
+ */
+function _cwrc_islandora_bagit_tree_flatten($element, &$form_state) {
+  $output = array();
+  $children = element_children($element);
+  foreach ($children as $c) {
+    $child = $element[$c];
+    if (array_key_exists('#type', $child) && ($child['#type'] == 'radio' || $child['#type'] == 'checkbox')) {
+      $output[] = $child;
+    }
+    else {
+      $output = array_merge($output, _cwrc_islandora_bagit_tree_flatten($child, $form_state));
+    }
+  }
+  return $output;
+}
+
+function cwrc_islandora_bagit_create_object_bag_batch($objects_to_include, $collection) {
+  $num_objects = count($objects_to_include);
+  $operations = array();
+
+  // Add each object in the collection to the $operations array.
+  foreach ($objects_to_include as $object) {
+    $operations[] = array(
+      'cwrc_islandora_bagit_process_object_batch',
+      array($object, $num_objects),
+    );
+  }
+
+  $batch = array(
+    'operations' => $operations,
+    'title' => t('Creating Bags'),
+    'init_message' => t('Initializing'),
+    'error_message' => t('An error occurred'),
+    'finished' => 'islandora_bagit_object_batch_finished',
+  );
+  batch_set($batch);
+  batch_process('islandora/object/' . $collection->id);
+}
+
+function cwrc_islandora_bagit_process_object_batch($islandora_object, $num_objects, &$context) {
+  if (empty($context['sandbox'])) {
+    $context['sandbox'] = array();
+    $context['sandbox']['progress'] = 0;
+    $context['sandbox']['current_node'] = 0;
+    $context['sandbox']['max'] = $num_objects;
+    $context['results'][] = $islandora_object->id;
+    $context['message'] = t('Creating Bag for object @pid', array('@pid' => $islandora_object->label));
+  }
+  islandora_bagit_create_bag($islandora_object);
+}
+
+function cwrc_islandora_bagit_create_collection_bag_batch($objects_to_include, $collection) {
+  // Sanitize the PID so it is usable in file paths.
+  $pid = str_replace(array(':', '-'), '_', $collection->id);
+
+  // Save all the datastreams to a randomly named temporary directory so
+  // they can be added to the Bag. We delete these files after creating the Bag.
+  $random_string = substr(md5(mt_rand()), 0, 7);
+  $tmp_ds_directory = variable_get('islandora_bagit_bag_tmp_dir', file_directory_temp()) .
+    '/islandora_bagit_tmp/' . $random_string;
+  if (!file_exists($tmp_ds_directory)) {
+    if (!mkdir($tmp_ds_directory, 0777, TRUE) && !is_dir($tmp_ds_directory)) {
+      drupal_set_message(
+        t('Directory "@dir" was not created', array('@dir' => $tmp_ds_directory)),
+        'warning'
+      );
+    }
+  }
+
+  // Load the BagItPHP library.
+  $bagit_library_dir = variable_get('islandora_bagit_library_dir', 'BagItPHP');
+  if ($bagit_library_path = libraries_get_path($bagit_library_dir)) {
+    require_once $bagit_library_path . '/lib/bagit.php';
+  }
+
+  $bag_file_name = variable_get('islandora_bagit_bag_name', 'Bag-') . $pid;
+  $bag_output_path = variable_get('islandora_bagit_bag_output_dir', '/tmp') .
+    DIRECTORY_SEPARATOR . $bag_file_name;
+
+  if (file_exists($bag_output_path)) {
+    rrmdir($bag_output_path);
+  }
+
+  $_SESSION['islandora_bagit_all_added_files'] = array();
+
+  if (variable_get('islandora_bagit_payload_octetstream_sum', FALSE)) {
+    // Variables to hold the number of files in the batch bag and their
+    // summed size.
+    $_SESSION['islandora_bagit_batch_octetstream_sum_count'] = '0';
+    $_SESSION['islandora_bagit_batch_octetstream_sum_size'] = '0';
+  }
+
+  $num_objects = count($objects_to_include);
+  $operations = array();
+
+  $collection_plugins = variable_get('islandora_bagit_collection_plugins', array(''));
+  $object_plugins = variable_get('islandora_bagit_object_plugins', array(''));
+
+  // Get bag-info.txt metadata.
+  $bag_info = islandora_bagit_create_baginfo();
+
+  // Create a new bag.
+  $bag = new BagIt($bag_output_path, TRUE, TRUE, FALSE, $bag_info);
+  islandora_bagit_serialize_bag_object($bag, $pid, $tmp_ds_directory);
+  // We need the $pid in islandora_bagit_collection_batch_finish_bag().
+  $_SESSION['islandora_bagit_collection_object_pid'] = $pid;
+
+  // Iterate through all the objects and create an entry in $operations
+  // for each one.
+  foreach ($objects_to_include as $islandora_object) {
+    if (count($collection_plugins) && count($object_plugins)) {
+      $operations[] = array(
+        'cwrc_islandora_bagit_process_collection_batch',
+        array($islandora_object, $num_objects, $tmp_ds_directory),
+      );
+    }
+    else {
+      drupal_set_message(t('There are no files to add to the Bag.'), 'warning');
+      watchdog('bagit', 'BagIt Bag not created for !object: plugins found no files.',
+        array('!object' => $collection->id));
+      return '';
+    }
+  }
+
+  if (count($operations)) {
+    $batch = array(
+      'operations' => $operations,
+      'title' => t('Creating Bag'),
+      'init_message' => t('Initializing'),
+      'error_message' => t('An error occurred'),
+      'finished' => 'islandora_bagit_collection_batch_finished',
+    );
+
+    // It would be awesome if we could use $batch['progressive'] = FALSE
+    // but that is pointless (see https://drupal.org/node/638712).
+    batch_set($batch);
+
+    // batch_process() is required if the batch is not initiated within a form
+    // handler. Parameter is the URL to redirect the user to, in this case, do
+    // not redirect.
+    batch_process('islandora/object/' . $collection->id);
+  }
+}
+
+/**
+ * Process one object in the collection batch.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The current object.
+ * @param string $num_objects
+ *   The number of objects in this batch.
+ * @param array $context
+ *   The Batch API $context array.
+ */
+function cwrc_islandora_bagit_process_collection_batch($islandora_object, $num_objects, $tmp_ds_directory, &$context) {
+  // Load the BagItPHP library to avoid 'incomplete object' errors.
+  $bagit_library_dir = variable_get('islandora_bagit_library_dir', 'BagItPHP');
+  if ($bagit_library_path = libraries_get_path($bagit_library_dir)) {
+    require_once $bagit_library_path . '/lib/bagit.php';
+  }
+
+  $bag = islandora_bagit_unserialize_bag_object();
+
+  if (empty($context['sandbox'])) {
+    $context['sandbox'] = array();
+    $context['sandbox']['progress'] = 0;
+    $context['sandbox']['current_node'] = 0;
+    $context['sandbox']['max'] = $num_objects;
+    $context['results'][] = $islandora_object->id;
+    $context['message'] = t('Adding object @pid to Bag', array('@pid' => $islandora_object->label));
+  }
+
+  // Iterate through all the object plugins. Each plugin must return the
+  // parameters required for addFile() (i.e., a list of file source and
+  // destination paths) or FALSE if it doesn't want to create a file.
+  $collection_plugin = variable_get('islandora_bagit_collection_plugin', '');
+  $object_plugins = variable_get('islandora_bagit_object_plugins', array(''));
+  // Since $bag->addFile() is being called after we loop through all the object
+  // plugins, we need an array where we can accumulate the returned arrays from
+  // each plugin.
+  $all_files_to_add = array();
+  foreach ($object_plugins as $object_plugin => $enabled) {
+    $files_to_add = array();
+    if ($enabled) {
+      module_load_include('inc', 'islandora_bagit', 'plugins/' . $object_plugin);
+      $object_plugin_init_function = 'islandora_bagit_' . $object_plugin . '_init';
+      // Process the object plugins.
+      $files_to_add = $object_plugin_init_function($islandora_object, $tmp_ds_directory);
+    }
+    if (count($files_to_add)) {
+      foreach ($files_to_add as $file_to_add) {
+        if (!in_array($file_to_add, $all_files_to_add)) {
+          $all_files_to_add[] = $file_to_add;
+        }
+      }
+    }
+  }
+
+  if (count($all_files_to_add)) {
+    // Pass $all_files_to_add from the object plugins to the collection plugin.
+    module_load_include('inc', 'islandora_bagit', 'plugins/' . $collection_plugin);
+    $collection_plugin_init_function = 'islandora_bagit_' . $collection_plugin . '_init';
+    $all_files_to_add = $collection_plugin_init_function($islandora_object, $all_files_to_add, $tmp_ds_directory);
+
+    // Now that the collection plugin has been fired, update the Bag.
+    $all_added_files = $_SESSION['islandora_bagit_all_added_files'];
+    foreach ($all_files_to_add as $file) {
+      $bag->addFile($file['source'], $file['dest']);
+      $all_added_files[] = $file['dest'];
+
+      // Update the octetstream values for this batch Bag.
+      if (variable_get('islandora_bagit_payload_octetstream_sum', FALSE)) {
+        $_SESSION['islandora_bagit_batch_octetstream_sum_count']++;
+        $_SESSION['islandora_bagit_batch_octetstream_sum_size'] += filesize($file['source']);
+      }
+    }
+    $bag->update();
+    $_SESSION['islandora_bagit_all_added_files'] = array_unique($all_added_files);
+
+    // Serialize the Bag object for later use.
+    islandora_bagit_serialize_bag_object($bag, $islandora_object->id, $tmp_ds_directory);
+  }
+}
+
+function _cwrc_islandora_bagit_object_is_paged_content($islandora_object) {
+  $is_paged_content = FALSE;
+  $module = module_exists('islandora_paged_content');
+  if ($module) {
+    $models = !empty($islandora_object->models) ? $islandora_object->models : array();
+    $is_paged_content = in_array('islandora:bookCModel', $models);
+  }
+  return $is_paged_content;
+}
+
+function _cwrc_islandora_bagit_object_is_collection_policy($islandora_object) {
+  $is_collection_policy = FALSE;
+  foreach ($islandora_object as $ds) {
+    if ($ds->id === 'COLLECTION_POLICY') {
+      $is_collection_policy = TRUE;
+      break;
+    }
+  }
+  return $is_collection_policy;
+}

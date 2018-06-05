@@ -1,0 +1,95 @@
+.form-type-io-checkbox-tree > label {
+  margin-bottom: 10px;
+}
+.islandora-object-tree {
+  max-height: 700px;
+  overflow-y: scroll;
+  border-top: 1px solid #d7d7d7;
+  border-bottom: 1px solid #d7d7d7;
+}
+.section-content .block .islandora-object-tree > ul {
+  margin-top: 10px;
+}
+.item-list .form-type-io-checkbox-tree ul,
+.block .form-type-io-checkbox-tree ul,
+.form-type-io-checkbox-tree ul {
+  list-style-type: none;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+}
+
+.item-list .form-type-io-checkbox-tree ul ul,
+.block .form-type-io-checkbox-tree ul ul,
+.form-type-io-checkbox-tree ul ul {
+  margin-left: 1.5em;
+}
+
+.item-list .form-type-io-checkbox-tree ul .form-item,
+.block .form-type-io-checkbox-tree ul .form-item,
+.form-type-io-checkbox-tree ul .form-item {
+  margin: 0;
+  padding: 0;
+}
+
+.islandora-object-tree-button,
+.no-islandora-object-tree-button {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  *display: inline;
+  zoom: 1;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.islandora-object-tree-button {
+  width: 16px;
+  height: 16px;
+}
+.islandora-object-tree-button:before {
+  content: '';
+  display: block;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #333;
+}
+
+.no-islandora-object-tree-button {
+  background: transparent;
+}
+
+.islandora-object-tree-button.islandora-object-tree-collapsed:before {
+  border-top-color: transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 8px solid #333;
+  border-right: none;
+}
+
+.form-type-io-checkbox-tree .form-item {
+  display: inline-block;
+  *display: inline;
+  zoom: 1;
+}
+
+.form-type-io-checkbox-tree .disabled {
+  opacity: .5;
+}
+
+.form-type-io-checkbox-tree .parent-islandora-object {
+  display: inline-block;
+  *display: inline;
+  zoom: 1;
+  font-weight: bold;
+}
+
+.form-type-checkbox-tree .error {
+  background-image: none;
+  border: 2px solid red;
+  padding: 3px;
+}
+
+.region-content ul.islandora-object-tree-level,
+.islandora-object-tree-level {
+  padding: 0;
+}

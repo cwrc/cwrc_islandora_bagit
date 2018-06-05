@@ -1,0 +1,35 @@
+.form-item-lazy-load-trigger > .lazy-loader-trigger {
+  display: none;
+}
+.form-item-lazy-load-trigger > .ajax-progress {
+  text-align: center;
+}
+.form-item-lazy-load-trigger > .ajax-progress .throbber {
+  background: transparent url(../images/throbber-icon.gif) no-repeat 0 center;
+  float: none;
+  height: 256px;
+  width: 256px;
+  display: inline-block;
+}
+.form-item-lazy-load-trigger > .ajax-progress .message {
+  display: inline-block;
+  width: 100%;
+  padding-left: 0;
+}
+
+.islandora-object-tree.required.error {
+  background-image: none;
+}
+
+#cwrc-islandora-bagit-max-size-exceeded i {
+  display: block;
+  padding-top: 7px;
+  float: left;
+  color: #a3002c;
+  font-size: 35px;
+}
+
+#cwrc-islandora-bagit-max-size-exceeded p {
+  float: left;
+  margin-left: 15px;
+}
