@@ -177,9 +177,8 @@ function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
   if ($tree_size > CWRC_ISLANDORA_BAGIT_MAX_COLLECTION_SIZE) {
     form_set_error(array(), _cwrc_islandora_bagit_max_collection_size_message());
   }
-  elseif ($tree_size == 0) {
-    dpm($form_state['values']);
-    form_set_error(array(), t('The tree is empty or you have un selected or the objects.'));
+  elseif ($tree_size == 0 && empty($form_state['values']['objects_tree'])) {
+    form_set_error(array(), t('The tree is empty or you have un selected all the objects.'));
   }
 }
 
