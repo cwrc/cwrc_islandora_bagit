@@ -246,12 +246,6 @@ function cwrc_islandora_bagit_create_bag_form_ajax_load_more($form, &$form_state
 function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree($trigger_object, &$form_state) {
   $options_tree = !empty($form_state['object_options_tree']) ? $form_state['object_options_tree'] : array();
   $trigger_object->COLLECTION_MEMBERS_OFFSET = $form_state['object_options_tree_loaded_more_count'][$trigger_object->id];
-  watchdog('cwrc_islandora_bagit', 'Object label: @label | Options tree: @count | Children count: @count1 | Offset: @offset - line 248', array(
-    '@label' => $trigger_object->label,
-    '@count' => count($options_tree),
-    '@count1' => count($trigger_object->children),
-    '@offset' => count($trigger_object->COLLECTION_MEMBERS_OFFSET),
-  ));
   $allowed = array();
   $default = array();
   $processed = array();
@@ -280,12 +274,6 @@ function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree($trig
     $options_tree = _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree_update_trigger_object($options_tree, $trigger_object);
     $form_state['root_tree_islandora_object']->children = $options_tree;
   }
-
-  watchdog('cwrc_islandora_bagit', 'Options tree: @count | Children count: @count1 | Offset: @offset - line 272', array(
-    '@count' => count($options_tree),
-    '@count1' => count($trigger_object->children),
-    '@offset' => count($trigger_object->COLLECTION_MEMBERS_OFFSET),
-  ));
 
   return $options_tree;
 }
@@ -322,7 +310,7 @@ function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
  */
 function cwrc_islandora_bagit_create_bag_form_submit($form, &$form_state) {
   $triggering_element = $form_state['triggering_element'];
-  if (!empty($triggering_element['#tree_parent'])) {
+  if (!empty($triggering_element['#tree_parent']) || empty($form_state['bagit_values']['objects_tree'])) {
     return;
   }
 
