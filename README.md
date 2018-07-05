@@ -1,2 +1,3 @@
-# cwrc_islandora_bagit
+# CWRC Islandora BagIt
+
 Provides CWRC customization to the Islandora BagIt integration.
