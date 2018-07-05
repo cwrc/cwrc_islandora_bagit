@@ -24,8 +24,8 @@
       });
 
       // Store the checkboxes to manage scope
-      var $allCheckboxes = $('.islandora-object-tree-cascading-selection ul input[type=checkbox]', context);
-      $allCheckboxes.on('change', function(event) {
+      var all_checkboxes = $('.islandora-object-tree-cascading-selection ul input[type=checkbox]', context);
+      all_checkboxes.on('change', function(event) {
         // Store what changed and what it changed to
         var $this = $(this),
           value = $this.prop('checked'),

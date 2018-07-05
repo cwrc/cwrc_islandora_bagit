@@ -245,6 +245,17 @@ function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed,
   return $result;
 }
 
+/**
+ * Determine if children members have selected object as default.
+ *
+ * @param array $object_members
+ *   Object members.
+ * @param array $default
+ *   Default object members selected.
+ *
+ * @return bool
+ *   TRUE if any, false otherwise.
+ */
 function _cwrc_islandora_bagit_object_children_selected($object_members, $default) {
   if (!empty($object_members->children)) {
     foreach ($object_members->children as $member) {
@@ -256,6 +267,15 @@ function _cwrc_islandora_bagit_object_children_selected($object_members, $defaul
   return FALSE;
 }
 
+/**
+ * Gets children of an Islandora object.
+ *
+ * @param \IslandoraFedoraObject $object
+ *   The object.
+ *
+ * @return array
+ *   It's children.
+ */
 function _cwrc_islandora_bagit_get_object_children($object) {
   module_load_include('inc', 'islandora_plotit', 'includes/voyant_helpers');
   $ri_result = NULL;
@@ -368,6 +388,14 @@ function _cwrc_islandora_bagit_tree_flatten($element, &$form_state) {
   return $output;
 }
 
+/**
+ * Creates a set of Bags, one per child object, via the Drupal Batch API.
+ *
+ * @param array $objects_to_include
+ *   The objects to include.
+ * @param \IslandoraFedoraObject $collection
+ *   The collection.
+ */
 function cwrc_islandora_bagit_create_object_bag_batch($objects_to_include, $collection) {
   $num_objects = count($objects_to_include);
   $operations = array();
@@ -391,6 +419,16 @@ function cwrc_islandora_bagit_create_object_bag_batch($objects_to_include, $coll
   batch_process('islandora/object/' . $collection->id);
 }
 
+/**
+ * Process one object in the batch.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The object.
+ * @param int $num_objects
+ *   The number of objects in this batch.
+ * @param array $context
+ *   The Batch API $context array.
+ */
 function cwrc_islandora_bagit_process_object_batch($islandora_object, $num_objects, &$context) {
   if (empty($context['sandbox'])) {
     $context['sandbox'] = array();
@@ -403,6 +441,14 @@ function cwrc_islandora_bagit_process_object_batch($islandora_object, $num_objec
   islandora_bagit_create_bag($islandora_object);
 }
 
+/**
+ * Creates a single Bag containing all objects in a collection.
+ *
+ * @param array $objects_to_include
+ *   The objects to include.
+ * @param \IslandoraFedoraObject $collection
+ *   The collection.
+ */
 function cwrc_islandora_bagit_create_collection_bag_batch($objects_to_include, $collection) {
   // Sanitize the PID so it is usable in file paths.
   $pid = str_replace(array(':', '-'), '_', $collection->id);
@@ -472,7 +518,7 @@ function cwrc_islandora_bagit_create_collection_bag_batch($objects_to_include, $
       drupal_set_message(t('There are no files to add to the Bag.'), 'warning');
       watchdog('bagit', 'BagIt Bag not created for !object: plugins found no files.',
         array('!object' => $collection->id));
-      return '';
+      return;
     }
   }
 
@@ -576,6 +622,15 @@ function cwrc_islandora_bagit_process_collection_batch($islandora_object, $num_o
   }
 }
 
+/**
+ * Checks whether an object is paged content.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The object.
+ *
+ * @return bool
+ *   TRUE when paged content, FALSE otherwise.
+ */
 function _cwrc_islandora_bagit_object_is_paged_content($islandora_object) {
   $is_paged_content = FALSE;
   $module = module_exists('islandora_paged_content');
@@ -586,6 +641,15 @@ function _cwrc_islandora_bagit_object_is_paged_content($islandora_object) {
   return $is_paged_content;
 }
 
+/**
+ * Checks whether an object is a collection policy.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The object.
+ *
+ * @return bool
+ *   TRUE when object has collection policy datastream , FALSE otherwise.
+ */
 function _cwrc_islandora_bagit_object_is_collection_policy($islandora_object) {
   $is_collection_policy = FALSE;
   foreach ($islandora_object as $ds) {
@@ -653,6 +717,14 @@ EOQ;
   return $pages;
 }
 
+/**
+ * Helper function to get object members using ri query.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The object.
+ * @param array $members
+ *   The members storage.
+ */
 function _cwrc_islandora_bagit_get_members_via_ri($islandora_object, &$members) {
 
   $tuque = islandora_get_tuque_connection();

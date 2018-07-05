@@ -17,7 +17,7 @@
  *
  * @ingroup themeable
  */
-function theme_io_checkbox_tree($variables) {
+function theme_io_checkbox_tree(array $variables) {
   $element = $variables['element'];
   $element['#children'] = drupal_render_children($element);
 
@@ -38,15 +38,15 @@ function theme_io_checkbox_tree($variables) {
   }
 
   if (array_key_exists('#start_minimized', $element) && $element['#start_minimized']) {
-    $attributes['class'][] = "islandora-object-tree-collapsed";
+    $attributes['class'][] = 'islandora-object-tree-collapsed';
   }
 
   if (array_key_exists('#cascading_selection', $element) && $element['#cascading_selection']) {
-    $attributes['class'][] = "islandora-object-tree-cascading-selection";
+    $attributes['class'][] = 'islandora-object-tree-cascading-selection';
   }
 
   if (array_key_exists('#track_list', $element) && $element['#track_list']) {
-    $attributes['class'][] = "islandora-object-tree-track-list-shown";
+    $attributes['class'][] = 'islandora-object-tree-track-list-shown';
   }
 
   if (!empty($element['#attributes']['class'])) {
@@ -60,9 +60,9 @@ function theme_io_checkbox_tree($variables) {
 }
 
 /**
- * Prints a list item with a checkbox and an unordered list of all the elements inside it.
+ * Put checkboxes under an unordered list.
  */
-function theme_io_checkbox_tree_level($variables) {
+function theme_io_checkbox_tree_level(array $variables) {
   $element = $variables['element'];
   $depth = $element['#depth'];
   $sm = '';
@@ -195,12 +195,12 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, &$form_state) {
  *   objects that are that member's children.
  * @param array $form_state
  *   The form state.
- * @param $value
+ * @param array $value
  *   The value of the element.
- * @param $max_choices
+ * @param int $max_choices
  *   The maximum number of allowed selections.
  *
- * @return
+ * @return array
  *   A completed checkbox_tree_item element, which contains a checkbox and
  *   possibly a checkbox_tree_level element as well.
  */
@@ -417,13 +417,22 @@ function _cwrc_islandora_bagit_io_checkbox_tree_validate(&$element, &$form_state
 
   if (!$value && $element['#required']) {
     // The title is already check_plained so it's appropriate to use !.
-    form_error($element, t('!name field is required.', array('!name' => $element['#title'])));
+    form_error($element, t('@name field is required.', array('@name' => $element['#title'])));
   }
 
   form_set_value($element, $value, $form_state);
   return $element;
 }
 
+/**
+ * Gets an object name size class.
+ *
+ * @param \IslandoraFedoraObject $object
+ *   The object.
+ *
+ * @return string
+ *   The css class.
+ */
 function _cwrc_islandora_bagit_get_object_name_size_class($object) {
   $class = 'size';
   $hide_size = _cwrc_islandora_bagit_object_is_paged_content($object);

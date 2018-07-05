@@ -102,9 +102,6 @@ function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_ob
       $default_values = $bagit_values['objects_tree'];
       $tree_size = $bagit_values['objects_tree_size'];
     }
-    $islandora_object_title = t('@label ( <span class="select-all-none-wrapper"></span> )', array(
-      '@label' => $islandora_object->label,
-    ));
 
     $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($islandora_object);
     $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($islandora_object) : FALSE;
@@ -140,7 +137,9 @@ function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_ob
         '#islandorar_object' => $islandora_object,
         '#prefix' => _cwrc_islandora_bagit_get_object_tree_element_prefix($islandora_object),
         '#suffix' => '</div>',
-        '#title' => $islandora_object_title,
+        '#title' => t('@label ( <span class="select-all-none-wrapper"></span> )', array(
+          '@label' => $islandora_object->label,
+        )),
         '#type' => 'io_checkbox_tree',
         '#default_value' => $default_values,
         '#max_choices' => -1,
@@ -243,6 +242,17 @@ function cwrc_islandora_bagit_create_bag_form_ajax_load_more($form, &$form_state
   $form_state['rebuild'] = TRUE;
 }
 
+/**
+ * Helper function to load more options in the tree.
+ *
+ * @param \IslandoraFedoraObject $trigger_object
+ *   The object.
+ * @param array $form_state
+ *   The form state.
+ *
+ * @return array
+ *   The updated options tree.
+ */
 function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree($trigger_object, &$form_state) {
   $options_tree = !empty($form_state['object_options_tree']) ? $form_state['object_options_tree'] : array();
   $trigger_object->COLLECTION_MEMBERS_OFFSET = $form_state['object_options_tree_loaded_more_count'][$trigger_object->id];
@@ -357,6 +367,14 @@ function _cwrc_islandora_bagit_get_objects_to_bag($tree_hierarchy_objects, $obje
   return $objects_to_bag;
 }
 
+/**
+ * Helper function to prepare the batch process.
+ *
+ * @param array $objects_to_include
+ *   The objects.
+ * @param \IslandoraFedoraObject $collection
+ *   The collection object.
+ */
 function cwrc_islandora_bagit_create_bag_prepare_batch($objects_to_include, $collection) {
   if (variable_get('islandora_bagit_multiple_bag_type', 'object') === 'object') {
     cwrc_islandora_bagit_create_object_bag_batch($objects_to_include, $collection);
@@ -367,6 +385,12 @@ function cwrc_islandora_bagit_create_bag_prepare_batch($objects_to_include, $col
   }
 }
 
+/**
+ * Helper function for the collection size error message.
+ *
+ * @return null|string
+ *   The message.
+ */
 function _cwrc_islandora_bagit_max_collection_size_message() {
   return t('<div id="cwrc-islandora-bagit-max-size-exceeded" class="clearfix" style="display: none;"><i class="fa fa-exclamation-triangle error" aria-hidden="true"></i><p>
 Your current selection exceeds the 2 GB maximum size of collection bags. Reduce 
@@ -375,6 +399,17 @@ one ore more additional bags for the items you have unchecked here.
   </p></div>');
 }
 
+/**
+ * Update the object value into the option tree after the load more process.
+ *
+ * @param array $options_tree
+ *   The existing tree.
+ * @param \IslandoraFedoraObject $trigger_object
+ *   The object.
+ *
+ * @return array
+ *   The updated tree.
+ */
 function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree_update_trigger_object($options_tree, $trigger_object) {
   foreach ($options_tree as $object) {
     if ($object->id === $trigger_object->id) {
