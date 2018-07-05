@@ -19,6 +19,19 @@
  *   The form render array.
  */
 function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_object) {
+  // For object which are not a collection policy let the normal bagit deal
+  // with them.
+  if (!_cwrc_islandora_bagit_object_is_collection_policy($islandora_object)) {
+    $link = islandora_bagit_create_bag($islandora_object);
+    if (strpos($link, 'Download the Bag') !== FALSE) {
+      $form['link'] = array('#markup' => $link);
+      return $form;
+    }
+  }
+  else {
+    $form_state['root_tree_islandora_object'] = $islandora_object;
+  }
+
   $module_name = 'cwrc_islandora_bagit';
   $path = drupal_get_path('module', $module_name);
   $lazy_load_trigger_class = 'lazy-loader-trigger';
@@ -80,6 +93,7 @@ function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_ob
   );
 
   if ($lazy_load_triggered || $bagit_values) {
+    $triggering_element = $form_state['triggering_element'];
     if (!$bagit_values) {
       $default_values = !empty($values['objects_tree']) ? $values['objects_tree'] : array();
       $tree_size = !empty($values['objects_tree_size']) ? $values['objects_tree_size'] : 0;
@@ -88,20 +102,45 @@ function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_ob
       $default_values = $bagit_values['objects_tree'];
       $tree_size = $bagit_values['objects_tree_size'];
     }
-
-    $form['objects_tree_wrapper']['#prefix'] = t('<p>You have chosen to download <a href="/islandora/object/@id">@label</a>, containing:</p>', array(
-      '@id' => $islandora_object->id,
+    $islandora_object_title = t('@label ( <span class="select-all-none-wrapper"></span> )', array(
       '@label' => $islandora_object->label,
     ));
-    if (
-      _cwrc_islandora_bagit_object_is_collection_policy($islandora_object) ||
-      _cwrc_islandora_bagit_object_is_paged_content($islandora_object)
-    ) {
+
+    $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($islandora_object);
+    $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($islandora_object) : FALSE;
+    if ($is_collection_policy || $is_paged_content) {
+      if ((!$options || !$options_tree) && $triggering_element['#type'] !== 'submit') {
+        $allowed = array();
+        $options_tree = cwrc_islandora_bagit_get_object_hierarchy(
+          $islandora_object,
+          $allowed,
+          '',
+          '',
+          $default_values,
+          TRUE,
+          array()
+        );
+        $options = _cwrc_islandora_bagit_get_options($options_tree);
+        $default_values = drupal_map_assoc(array_keys($options));
+        $form_state['object_options_tree'] = $options_tree;
+        $form_state['object_options'] = $options;
+        $form_state['root_tree_islandora_object'] = $islandora_object;
+      }
+      elseif ($triggering_element['#type'] === 'submit' && isset($triggering_element['#tree_parent'])) {
+        $trigger_object = $triggering_element['#tree_parent'];
+        $options_tree = _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree(
+          $trigger_object,
+          $form_state
+        );
+        $options = _cwrc_islandora_bagit_get_options($options_tree);
+        $form_state['object_options_tree'] = $options_tree;
+        $form_state['object_options'] = $options;
+      }
       $form['objects_tree_wrapper']['objects_tree'] = array(
         '#islandorar_object' => $islandora_object,
-        '#title' => t('@label <span class="tree-size"></span>', array(
-          '@label' => $islandora_object->label,
-        )),
+        '#prefix' => _cwrc_islandora_bagit_get_object_tree_element_prefix($islandora_object),
+        '#suffix' => '</div>',
+        '#title' => $islandora_object_title,
         '#type' => 'io_checkbox_tree',
         '#default_value' => $default_values,
         '#max_choices' => -1,
@@ -121,6 +160,10 @@ function cwrc_islandora_bagit_create_bag_form($form, &$form_state, $islandora_ob
         '#options_tree' => $options_tree,
         '#element_validate' => array('_cwrc_islandora_bagit_io_checkbox_tree_validate'),
         '#value' => array(),
+        '#weight' => 1,
+        '#tree_load_more_callback' => 'cwrc_islandora_bagit_create_bag_form_ajax_load_more_callback',
+        '#tree_load_more_submit' => array('cwrc_islandora_bagit_create_bag_form_ajax_load_more'),
+        '#tree_load_more_wrapper' => 'cwrc-islandora-bagit-tree-checkboxes',
       );
     }
 
@@ -165,6 +208,89 @@ function cwrc_islandora_bagit_create_bag_form_form_ajax_callback($form, $form_st
 }
 
 /**
+ * Ajax load more callback.
+ *
+ * @param array $form
+ *   The form array.
+ * @param array $form_state
+ *   The form state array.
+ *
+ * @return array
+ *   the element to be rebuilt on ajax callback.
+ */
+function cwrc_islandora_bagit_create_bag_form_ajax_load_more_callback($form, $form_state) {
+  return $form['objects_tree_wrapper']['objects_tree'];
+}
+
+/**
+ * Ajax load more submit.
+ *
+ * @param array $form
+ *   The form array.
+ * @param array $form_state
+ *   The form state array.
+ */
+function cwrc_islandora_bagit_create_bag_form_ajax_load_more($form, &$form_state) {
+  $triggering_element = $form_state['triggering_element'];
+  $parent_object = &$triggering_element['#tree_parent'];
+  if (empty($form_state['object_options_tree_loaded_more_count'][$parent_object->id])) {
+    $form_state['object_options_tree_loaded_more_count'][$parent_object->id] = 1;
+  }
+  else {
+    $form_state['object_options_tree_loaded_more_count'][$parent_object->id]++;
+  }
+
+  $form_state['rebuild'] = TRUE;
+}
+
+function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree($trigger_object, &$form_state) {
+  $options_tree = !empty($form_state['object_options_tree']) ? $form_state['object_options_tree'] : array();
+  $trigger_object->COLLECTION_MEMBERS_OFFSET = $form_state['object_options_tree_loaded_more_count'][$trigger_object->id];
+  watchdog('cwrc_islandora_bagit', 'Object label: @label | Options tree: @count | Children count: @count1 | Offset: @offset - line 248', array(
+    '@label' => $trigger_object->label,
+    '@count' => count($options_tree),
+    '@count1' => count($trigger_object->children),
+    '@offset' => count($trigger_object->COLLECTION_MEMBERS_OFFSET),
+  ));
+  $allowed = array();
+  $default = array();
+  $processed = array();
+  $filter = '';
+  $label = '';
+  $trigger_object->children = cwrc_islandora_bagit_get_object_hierarchy(
+    $trigger_object,
+    $allowed,
+    $filter,
+    $label,
+    $default,
+    FALSE,
+    $processed,
+    0,
+    $form_state['object_options_tree_loaded_more_count'][$trigger_object->id]
+  );
+
+  // Updating the main/root tree object if necessary.
+  $main_object = $form_state['root_tree_islandora_object'];
+  if ($trigger_object->id === $main_object->id) {
+    $form_state['root_tree_islandora_object'] = $trigger_object;
+    $options_tree = $trigger_object->children;
+  }
+  else {
+    // Updating the tree which was loaded more.
+    $options_tree = _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree_update_trigger_object($options_tree, $trigger_object);
+    $form_state['root_tree_islandora_object']->children = $options_tree;
+  }
+
+  watchdog('cwrc_islandora_bagit', 'Options tree: @count | Children count: @count1 | Offset: @offset - line 272', array(
+    '@count' => count($options_tree),
+    '@count1' => count($trigger_object->children),
+    '@offset' => count($trigger_object->COLLECTION_MEMBERS_OFFSET),
+  ));
+
+  return $options_tree;
+}
+
+/**
  * Bagit form validate callback.
  *
  * @param array $form
@@ -173,7 +299,11 @@ function cwrc_islandora_bagit_create_bag_form_form_ajax_callback($form, $form_st
  *   The form state array.
  */
 function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
-  $tree_size = $form_state['values']['objects_tree_size'];
+  $triggering_element = $form_state['triggering_element'];
+  if (!empty($triggering_element['#tree_parent']) || $triggering_element['#type'] === 'checkbox') {
+    return;
+  }
+  $tree_size = isset($form_state['values']['objects_tree_size']) ? $form_state['values']['objects_tree_size'] : 0;
   if ($tree_size > CWRC_ISLANDORA_BAGIT_MAX_COLLECTION_SIZE) {
     form_set_error(array(), _cwrc_islandora_bagit_max_collection_size_message());
   }
@@ -191,6 +321,11 @@ function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
  *   The form state array.
  */
 function cwrc_islandora_bagit_create_bag_form_submit($form, &$form_state) {
+  $triggering_element = $form_state['triggering_element'];
+  if (!empty($triggering_element['#tree_parent'])) {
+    return;
+  }
+
   $values = $form_state['values'];
   // Saving in bagit values so that they can be reuse on the confirmation step.
   $form_state['bagit_values'] = $values;
@@ -245,9 +380,21 @@ function cwrc_islandora_bagit_create_bag_prepare_batch($objects_to_include, $col
 }
 
 function _cwrc_islandora_bagit_max_collection_size_message() {
-  return t('<div id="cwrc-islandora-bagit-max-size-exceeded" class="clearfix" style="display: none;"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i><p>
+  return t('<div id="cwrc-islandora-bagit-max-size-exceeded" class="clearfix" style="display: none;"><i class="fa fa-exclamation-triangle error" aria-hidden="true"></i><p>
 Your current selection exceeds the 2 GB maximum size of collection bags. Reduce 
 the size of your bag by un-checking some of the descendants.<br/>You may create 
 one ore more additional bags for the items you have unchecked here.
   </p></div>');
+}
+
+function _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree_update_trigger_object($options_tree, $trigger_object) {
+  foreach ($options_tree as $object) {
+    if ($object->id === $trigger_object->id) {
+      $options_tree[$object->id] = $trigger_object;
+    }
+    elseif ($object->children) {
+      $object->children = _cwrc_islandora_bagit_create_bag_form_ajax_load_more_options_tree_update_trigger_object($object->children, $trigger_object);
+    }
+  }
+  return $options_tree;
 }

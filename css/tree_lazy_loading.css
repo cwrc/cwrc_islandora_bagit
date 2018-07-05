@@ -20,16 +20,28 @@
 .islandora-object-tree.required.error {
   background-image: none;
 }
-
+.form-intro i.fa,
 #cwrc-islandora-bagit-max-size-exceeded i {
   display: block;
   padding-top: 7px;
   float: left;
-  color: #a3002c;
   font-size: 35px;
 }
-
+#cwrc-islandora-bagit-max-size-exceeded i.error {
+  color: #a3002c;
+}
 #cwrc-islandora-bagit-max-size-exceeded p {
   float: left;
   margin-left: 15px;
+}
+.form-intro {
+  position: relative;
+}
+.form-intro i.fa {
+  position: absolute;
+  left: 0;
+  float: none;
+}
+.form-intro i.fa + p {
+  padding-left: 50px;
 }

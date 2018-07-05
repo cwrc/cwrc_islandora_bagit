@@ -75,25 +75,84 @@ function cwrc_islandora_bagit_menu_alter(&$items) {
   }
 }
 
-function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed, $filter, $label, $default = array(), $initial = FALSE, $processed = array()) {
-  $members = _cwrc_islandora_bagit_get_object_children($islandora_object);
+/**
+ * Gets an object hierarchy.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The islandora object.
+ * @param array $allowed
+ *   Allowed objects.
+ * @param string $filter
+ *   ID of an object to filter.
+ * @param string $label
+ *   The label.
+ * @param array $default
+ *   The default.
+ * @param bool $initial
+ *   Whether it's the initial object in the tree.
+ * @param array $processed
+ *   Processed items.
+ *
+ * @return array
+ *   The tree hierarchy.
+ */
+function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed, $filter, $label, $default = array(), $initial = FALSE, $processed = array(), $depth = 0, $offset = 0) {
+  $depth++;
+  if (empty($islandora_object->COLLECTION_MEMBERS)) {
+    $members = _cwrc_islandora_bagit_get_object_children($islandora_object);
+    $islandora_object->COLLECTION_MEMBERS = $members;
+    $islandora_object->COLLECTION_MEMBERS_COUNT = count($members);
+    $islandora_object->COLLECTION_MEMBERS_OFFSET = 0;
+    $use_offset = FALSE;
+    $result = array();
+  }
+  else {
+    $members = $islandora_object->COLLECTION_MEMBERS;
+    if (!$offset) {
+      $islandora_object->COLLECTION_MEMBERS_OFFSET++;
+    }
+    $use_offset = TRUE;
+    $result = $islandora_object->children;
+  }
   $id = $islandora_object->id;
-  $islandora_object->COLLECTION_MEMBERS_COUNT = count($members);
-  $result = array();
+  $islandora_object->DEPTH = $depth;
 
-  if ($islandora_object->COLLECTION_MEMBERS_COUNT <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN && !in_array($id, $processed)) {
-    array_push($processed, $id);
-    if ($filter !== '') {
-      foreach ($allowed as $k => $v) {
-        if (array_key_exists($k, $members)) {
-          $member = &$members[$k];
-          if ($member) {
+  if (!$use_offset) {
+    if ($islandora_object->COLLECTION_MEMBERS_COUNT <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN && !in_array($id, $processed)) {
+      array_push($processed, $id);
+      if ($filter !== '') {
+        foreach ($allowed as $k => $v) {
+          if (array_key_exists($k, $members)) {
+            $member = &$members[$k];
+            if ($member) {
+              $children = [];
+              $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($member);
+              $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($member) : FALSE;
+              if ($is_collection_policy || $is_paged_content) {
+                $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed);
+              }
+              if (is_array($children)) {
+                $member->children = $children;
+                $member->children_selected = _cwrc_islandora_bagit_object_children_selected($member, $default);
+              }
+              else {
+                $member->children_selected = FALSE;
+              }
+              $member->TEST = $label;
+              $member->parent = $islandora_object;
+              $result[$member->id] = $member;
+            }
+          }
+        }
+      }
+      else {
+        foreach ($members as $member) {
+          if ($filter === '' || array_key_exists($member->id, $allowed)) {
             $children = array();
-            if (
-              _cwrc_islandora_bagit_object_is_collection_policy($member) ||
-              _cwrc_islandora_bagit_object_is_paged_content($member)
-            ) {
-              $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed);
+            $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($member);
+            $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($member) : FALSE;
+            if ($is_collection_policy || $is_paged_content) {
+              $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed, $depth);
             }
             if (is_array($children)) {
               $member->children = $children;
@@ -103,19 +162,27 @@ function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed,
               $member->children_selected = FALSE;
             }
             $member->TEST = $label;
-            array_push($result, $member);
+            $member->parent = $islandora_object;
+            $result[$member->id] = $member;
           }
         }
       }
+      $islandora_object->COLLECTION_MEMBERS_COUNT_PROCESSED = count($members);
+      $islandora_object->children = $members;
+      $islandora_object->children_selected = _cwrc_islandora_bagit_object_children_selected($islandora_object, $default);
     }
-    else {
-      foreach ($members as $member) {
-        if ($filter === '' || array_key_exists($member->id, $allowed)) {
-          $children = [];
-          if (
-            _cwrc_islandora_bagit_object_is_collection_policy($member) ||
-            _cwrc_islandora_bagit_object_is_paged_content($member)
-          ) {
+    elseif ($islandora_object->COLLECTION_MEMBERS_COUNT > CWRC_ISLANDORA_BAGIT_MAX_CHILDREN && !in_array($id, $processed)) {
+      array_push($processed, $id);
+      $member_ids = array_slice($members, 0, CWRC_ISLANDORA_BAGIT_MAX_CHILDREN);
+      $islandora_object->COLLECTION_MEMBERS_COUNT_PROCESSED = count($member_ids);
+      $processed_members = array();
+
+      foreach ($member_ids as $member_id) {
+        if (($member = islandora_object_load($member_id)) && ($filter === '' || array_key_exists($member_id, $allowed))) {
+          $children = array();
+          $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($member);
+          $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($member) : FALSE;
+          if ($is_collection_policy || $is_paged_content) {
             $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, $filter, $label, $default, FALSE, $processed);
           }
           if (is_array($children)) {
@@ -126,22 +193,64 @@ function cwrc_islandora_bagit_get_object_hierarchy($islandora_object, &$allowed,
             $member->children_selected = FALSE;
           }
           $member->TEST = $label;
-          array_push($result, $member);
+          $member->parent = $islandora_object;
+          $processed_members[$member->id] = $member;
+          $result[$member_id] = $member;
         }
       }
+      $islandora_object->children = !empty($islandora_object->children) ? $islandora_object->children : array();
+      if (!$islandora_object->children) {
+        $islandora_object->children = $processed_members;
+      }
+      else {
+        $islandora_object->children = array_merge($islandora_object->children, $processed_members);
+      }
+      $islandora_object->children_selected = _cwrc_islandora_bagit_object_children_selected($islandora_object, $default);
+    }
+    else {
+      $islandora_object->children = [];
+      $islandora_object->children_selected = FALSE;
     }
   }
-  elseif (!$initial) {
-
+  else {
+    $collection_offset = $islandora_object->COLLECTION_MEMBERS_OFFSET;
+    $array_offset = $offset ?: $collection_offset;
+    $array_offset *= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN;
+    // Getting next 100 by offsetting from the one we had before with load more.
+    $member_ids = array_slice($members, $array_offset, CWRC_ISLANDORA_BAGIT_MAX_CHILDREN);
+    $islandora_object->COLLECTION_MEMBERS_COUNT_PROCESSED += count($member_ids);
+    foreach ($member_ids as $member_id) {
+      if ($member = islandora_object_load($member_id)) {
+        $children = array();
+        $is_collection_policy = _cwrc_islandora_bagit_object_is_collection_policy($member);
+        $is_paged_content = !$is_collection_policy ? _cwrc_islandora_bagit_object_is_paged_content($member) : FALSE;
+        if ($is_collection_policy || $is_paged_content) {
+          $children = cwrc_islandora_bagit_get_object_hierarchy($member, $allowed, '', '', $default, FALSE, $processed);
+        }
+        if (is_array($children)) {
+          $member->children = $children;
+          $member->children_selected = _cwrc_islandora_bagit_object_children_selected($member, $default);
+        }
+        else {
+          $member->children_selected = FALSE;
+        }
+        $member->TEST = '';
+        $member->parent = $islandora_object;
+        $islandora_object->children[$member_id] = $member;
+      }
+    }
+    $islandora_object->children_selected = _cwrc_islandora_bagit_object_children_selected($islandora_object, $default);
+    $result = $islandora_object->children;
   }
-
   return $result;
 }
 
 function _cwrc_islandora_bagit_object_children_selected($object_members, $default) {
-  foreach ($object_members->children as $member) {
-    if (isset($default[$member->id]) || $member->children_selected) {
-      return TRUE;
+  if (!empty($object_members->children)) {
+    foreach ($object_members->children as $member) {
+      if (isset($default[$member->id]) || $member->children_selected) {
+        return TRUE;
+      }
     }
   }
   return FALSE;
@@ -150,13 +259,13 @@ function _cwrc_islandora_bagit_object_children_selected($object_members, $defaul
 function _cwrc_islandora_bagit_get_object_children($object) {
   module_load_include('inc', 'islandora_plotit', 'includes/voyant_helpers');
   $ri_result = NULL;
-  islandora_cwrc_voyant_get_members_via_ri($object, $ri_result);
+  _cwrc_islandora_bagit_get_members_via_ri($object, $ri_result);
 
   $objects = array();
   if (!empty($ri_result)) {
     if (count($ri_result) <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN) {
       foreach ($ri_result as $result) {
-        if (!empty($result['object']['type']) && $result['object']['type'] == 'pid') {
+        if (!empty($result['object']['type']) && $result['object']['type'] === 'pid') {
           $pid = $result['object']['value'];
           $objects[$pid] = islandora_object_load($pid);
         }
@@ -169,8 +278,7 @@ function _cwrc_islandora_bagit_get_object_children($object) {
     }
   }
   elseif (_cwrc_islandora_bagit_object_is_paged_content($object)) {
-    module_load_include('inc', 'islandora_paged_content', 'includes/utilities');
-    $ri_result = islandora_paged_content_get_pages_ri($object);
+    $ri_result = _cwrc_islandora_bagit_paged_content_get_pages_ri($object);
     if (count($ri_result) <= CWRC_ISLANDORA_BAGIT_MAX_CHILDREN) {
       foreach ($ri_result as $result) {
         if (!empty($result['pid'])) {
@@ -209,11 +317,20 @@ function _cwrc_islandora_bagit_get_options(array $members) {
   return $options;
 }
 
+/**
+ * Gets the object datastreams human readable and raw size.
+ *
+ * @param \IslandoraFedoraObject $islandora_object
+ *   The islandora object.
+ *
+ * @return array
+ *   The object raw and human readable sizes.
+ */
 function _cwrc_islandora_bagit_get_object_datastreams_human_readable_size($islandora_object) {
   $size = 0;
   module_load_include('inc', 'islandora', 'includes/utilities');
   foreach ($islandora_object as $ds) {
-    if ($ds->controlGroup == 'M' || $ds->controlGroup == 'X') {
+    if (is_object($ds) && ($ds->controlGroup === 'M' || $ds->controlGroup === 'X')) {
       $size += $ds->size;
     }
   }
@@ -464,7 +581,7 @@ function _cwrc_islandora_bagit_object_is_paged_content($islandora_object) {
   $module = module_exists('islandora_paged_content');
   if ($module) {
     $models = !empty($islandora_object->models) ? $islandora_object->models : array();
-    $is_paged_content = in_array('islandora:bookCModel', $models);
+    $is_paged_content = in_array('islandora:bookCModel', $models, TRUE);
   }
   return $is_paged_content;
 }
@@ -478,4 +595,119 @@ function _cwrc_islandora_bagit_object_is_collection_policy($islandora_object) {
     }
   }
   return $is_collection_policy;
+}
+
+/**
+ * Helper function to retrieve the pages and dimensions from the RI.
+ *
+ * @param AbstractObject $object
+ *   An AbstractObject representing a book.
+ *
+ * @return array
+ *   All the pages in the given paged content object. Ordered by sequence
+ *   number. Each an array containing info.
+ */
+function _cwrc_islandora_bagit_paged_content_get_pages_ri(AbstractObject $object) {
+  $query = <<<EOQ
+  PREFIX islandora-rels-ext: <http://islandora.ca/ontology/relsext#>
+  SELECT ?pid ?page ?label ?width ?height
+  FROM <#ri>
+  WHERE {
+    ?pid <fedora-rels-ext:isMemberOf> <info:fedora/{$object->id}> ;
+         <fedora-model:label> ?label ;
+         islandora-rels-ext:isSequenceNumber ?page ;
+         <fedora-model:state> <fedora-model:Active> .
+    OPTIONAL {
+      ?pid <fedora-view:disseminates> ?dss .
+      ?dss <fedora-view:disseminationType> <info:fedora/*/JP2> ;
+           islandora-rels-ext:width ?width ;
+           islandora-rels-ext:height ?height .
+   }
+  }
+  ORDER BY ?label
+EOQ;
+
+  $results = $object->repository->ri->sparqlQuery($query);
+
+  // Get rid of the "extra" info...
+  $map = function($o) {
+    foreach ($o as $key => &$info) {
+      $info = $info['value'];
+    }
+
+    $o = array_filter($o);
+
+    return $o;
+  };
+  $pages = array_map($map, $results);
+
+  // Grab the PIDs...
+  $get_pid = function($o) {
+    return $o['pid'];
+  };
+  $pids = array_map($get_pid, $pages);
+
+  // If we have some pages, combine our remapped results to produce an array
+  // mapping pids to the values for that pid.
+  $pages = count($pids) ? array_combine($pids, $pages) : array();
+  return $pages;
+}
+
+function _cwrc_islandora_bagit_get_members_via_ri($islandora_object, &$members) {
+
+  $tuque = islandora_get_tuque_connection();
+
+  // Query the rindex to get all the objects that have a 'isMemberOfCollection'
+  // relationship with the specified collection and add all their PIDs to the
+  // list.
+  $ri_query = <<<EOQ
+PREFIX fedora-rels-ext: <info:fedora/fedora-system:def/relations-external#>
+SELECT ?object ?label
+FROM <#ri>
+WHERE {
+  ?object fedora-rels-ext:isMemberOfCollection <info:fedora/{$islandora_object->id}> ;
+          <fedora-model:label> ?label ;
+}
+ORDER BY ?label
+EOQ;
+
+  $members = $tuque->repository->ri->sparqlQuery($ri_query, 'unlimited');
+}
+
+/**
+ * Gets the Islandora object tree element prefix.
+ *
+ * @param \IslandoraFedoraObject $object
+ *   The object.
+ *
+ * @return string
+ *   The element prefix.
+ */
+function _cwrc_islandora_bagit_get_object_tree_element_prefix(\IslandoraFedoraObject $object) {
+  $members_count = $object->COLLECTION_MEMBERS_COUNT;
+  $processed_members_count = !empty($object->COLLECTION_MEMBERS_COUNT_PROCESSED) ? $object->COLLECTION_MEMBERS_COUNT_PROCESSED : 0;
+  $element_prefix = '<div id="cwrc-islandora-bagit-tree-checkboxes">';
+  if ($members_count !== $processed_members_count && $processed_members_count === 100) {
+    $element_prefix .= t('<div class="form-intro clearfix"><i class="fa fa-exclamation-triangle warning" aria-hidden="true"></i><p>
+You have chosen to create a download from <a href="/islandora/object/@id">@label</a>, 
+containing over 100 descendants. Due to the size of the collection, only 
+the first 100 direct descendants are selected. If you want to modify the 
+selection, uncheck some of the items and check others. You will need to go 
+to any sub-collections to download them. The current selection contains: 
+<span class="tree-size"></span>
+</p></div>', array('@id' => $object->id, '@label' => $object->label));
+  }
+  else {
+    $element_prefix .= t('<div class="form-intro clearfix"><p>
+You have chosen to create a download from <a href="/islandora/object/@id">@label</a>.
+The current selection contains:  <span class="tree-size"></span>.
+</p></div>',
+      array(
+        '@id' => $object->id,
+        '@label' => $object->label,
+      )
+    );
+  }
+
+  return $element_prefix;
 }

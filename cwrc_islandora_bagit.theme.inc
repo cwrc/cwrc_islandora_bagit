@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ * Contains theme logic related to the checkbox tree.
+ */
+
+/**
  * Returns HTML for a io_checkbox_tree form element.
  *
  * @param array $variables
@@ -21,6 +26,7 @@ function theme_io_checkbox_tree($variables) {
     $attributes['id'] = $element['#id'];
   }
   $attributes['class'][] = 'islandora-object-tree';
+  $attributes['class'][] = 'bagit-tree-select-all-none';
   $attributes['class'][] = 'clearfix';
 
   if (form_get_error($element)) {
@@ -58,12 +64,13 @@ function theme_io_checkbox_tree($variables) {
  */
 function theme_io_checkbox_tree_level($variables) {
   $element = $variables['element'];
+  $depth = $element['#depth'];
   $sm = '';
   if (array_key_exists('#level_start_minimized', $element) && $element['#level_start_minimized']) {
     $sm = "style='display: none;'";
   }
 
-  $output = "<ul class='islandora-object-tree-level clearfix' $sm>";
+  $output = "<ul class='islandora-object-tree-level islandora-object-tree-level-$depth clearfix' $sm>";
   $children = element_children($element);
   foreach ($children as $child) {
     $output .= '<li>';
@@ -77,7 +84,9 @@ function theme_io_checkbox_tree_level($variables) {
 }
 
 /**
- * Prints a single item in the tree, followed by that item's children (which may be another checkbox_tree_level).
+ * Prints a single item in the tree, followed by that item's children.
+ *
+ * (which may be another checkbox_tree_level).
  */
 function theme_io_checkbox_tree_item($variables) {
   $element = $variables['element'];
@@ -105,8 +114,7 @@ function theme_io_checkbox_tree_item($variables) {
  */
 function theme_io_checkbox_tree_label($variables) {
   $element = $variables['element'];
-  $output = "<div class='parent-islandora-object'>" . $element['#value'] . "</div>";
-  return $output;
+  return "<div class='parent-islandora-object'>{$element['#value']}</div>";
 }
 
 /**
@@ -122,8 +130,9 @@ function theme_io_checkbox_tree_label($variables) {
  * @return array
  *   The processed element.
  */
-function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
+function cwrc_islandora_bagit_process_checkbox_tree($element, &$form_state) {
   if (is_array($form_state)) {
+    $islandora_object = &$form_state['root_tree_islandora_object'];
     if (!empty($element['#max_choices']) && $element['#max_choices'] != '-1') {
       drupal_add_js(array('cwrc_islandora_bagit' => array('trees' => array($element['#id'] => array('max_choices' => $element['#max_choices'])))), 'setting');
     }
@@ -132,7 +141,8 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
     $value = !empty($element['#default_value']) ? $element['#default_value'] : array();
 
     if (empty($element['#options'])) {
-      $element['#options_tree'] = cwrc_islandora_bagit_get_object_hierarchy($element['#islandorar_object'], $allowed, '', '', $value, TRUE, array());
+      $options_tree = cwrc_islandora_bagit_get_object_hierarchy($islandora_object, $allowed, '', '', $value, TRUE, array());
+      $element['#options_tree'] = $options_tree;
       $form_state['object_options_tree'] = $element['#options_tree'];
       if ($element['#max_choices'] == 1 && !$element['#required']) {
         array_unshift($element['#options_tree'], (object) array(
@@ -145,9 +155,9 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
       $form_state['object_options'] = $element['#options'];
       $value = drupal_map_assoc(array_keys($element['#options']));
       $element['#default_value'] = $value;
+      $element['#prefix'] = _cwrc_islandora_bagit_get_object_tree_element_prefix($islandora_object);
     }
 
-    $members = !empty($element['#options_tree']) ? $element['#options_tree'] : array();
     $max_choices = !empty($element['#max_choices']) ? $element['#max_choices'] : 1;
     if (array_key_exists('#select_parents', $element) && $element['#select_parents']) {
       $element['#attributes']['class'][] = 'select-parents';
@@ -159,8 +169,12 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
     }
 
     $tree = new stdClass();
-    $tree->children = $members;
-    $element[] = _cwrc_islandora_bagit_build_level($element, $tree, $form_state, $value, $max_choices, array(), 1);
+    $tree->children = $islandora_object->children;
+    $tree->id = $islandora_object->id;
+    $tree->COLLECTION_MEMBERS = $islandora_object->COLLECTION_MEMBERS;
+    $tree->COLLECTION_MEMBERS_COUNT = $islandora_object->COLLECTION_MEMBERS_COUNT;
+    $tree->COLLECTION_MEMBERS_COUNT_PROCESSED = $islandora_object->COLLECTION_MEMBERS_COUNT_PROCESSED;
+    $element[] = _cwrc_islandora_bagit_build_level($element, $tree, $form_state, $value, $max_choices, array(), 1, TRUE);
   }
 
   return $element;
@@ -176,7 +190,7 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
  *
  * @param array $element
  *   The main checkbox_tree element.
- * @param $member
+ * @param \Object $member
  *   A member object.  $member->children should be an array of the members
  *   objects that are that member's children.
  * @param array $form_state
@@ -191,24 +205,29 @@ function cwrc_islandora_bagit_process_checkbox_tree($element, $form_state) {
  *   possibly a checkbox_tree_level element as well.
  */
 function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value, $max_choices, $parent_ids, $parent, $depth) {
-  $start_minimized = FALSE;
-  $size = _cwrc_islandora_bagit_get_object_datastreams_human_readable_size($member);
-  $object_name = array(
-    '#type' => 'html_tag',
-    '#tag' => 'span',
-    '#value' => t('<span class="label">@label</span> (<span class="size">@size</span>)', array(
-      '@label' => $member->label,
-      '@size' => $size['human'],
-    )),
-    '#attributes' => array(
-      'data-item-size' => $size['raw'],
-      'class' => array('islandora-object-item-name'),
-    ),
-  );
-  $object_name = drupal_render($object_name);
+  $is_button = $member->is_button;
   $object_id = $member->id;
-  if (array_key_exists('#start_minimized', $element)) {
-    $start_minimized = $element['#start_minimized'];
+
+  // Getting object name which would used as label.
+  if (!$is_button) {
+    $size = _cwrc_islandora_bagit_get_object_datastreams_human_readable_size($member);
+    $object_name = [
+      '#type' => 'html_tag',
+      '#tag' => 'span',
+      '#value' => t('<span class="label">@label</span> <span class="@size_class">(@size)</span>', [
+        '@label' => $member->label,
+        '@size' => $size['human'],
+        '@size_class' => _cwrc_islandora_bagit_get_object_name_size_class($member),
+      ]),
+      '#attributes' => [
+        'data-item-size' => $size['raw'],
+        'class' => ['islandora-object-item-name'],
+      ],
+    ];
+    $object_name = drupal_render($object_name);
+  }
+  else {
+    $object_name = t('load more');
   }
 
   $leaves_only = FALSE;
@@ -225,17 +244,32 @@ function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value
     '#depth' => $depth,
   );
 
-  if (!$element['#leaves_only'] || count($member->children) == 0) {
+  if (!$is_button && (!$element['#leaves_only'] || count($member->children) === 0)) {
+    $element['#attributes']['class'][] = 'bagit-tree-form-checkbox';
     $e = array(
-      '#type' => ($max_choices == 1) ? 'radio' : 'checkbox',
+      '#type' => ($max_choices === 1) ? 'radio' : 'checkbox',
       '#title' => $object_name,
       '#on_value' => $object_id,
       '#off_value' => 0,
       '#return_value' => $object_id,
       '#parent_values' => $parent_ids,
       '#default_value' => isset($value[$object_id]) ? $object_id : NULL,
-      '#attributes' => isset($element['#attributes']) ? $element['#attributes'] : array(),
+      '#attributes' => $element['#attributes'],
       '#ajax' => isset($element['#ajax']) ? $element['#ajax'] : NULL,
+    );
+  }
+  elseif ($is_button) {
+    // Let render the load more submit callback as a tree item.
+    $e = array(
+      '#type' => 'submit',
+      '#value' => $object_name,
+      '#tree_parent' => $member->parent,
+      '#tree_parent_depth' => $depth,
+      '#submit' => $element['#tree_load_more_submit'],
+      '#ajax' => array(
+        'callback' => $element['#tree_load_more_callback'],
+        'wrapper' => $element['#tree_load_more_wrapper'],
+      ),
     );
   }
   else {
@@ -266,17 +300,18 @@ function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value
 /**
  * Builds a level in the tree widget.
  *
- * This function returns an element that has a number of checkbox_tree_item elements
- * as children. It is meant to be called recursively when the widget is built.
+ * This function returns an element that has a number of checkbox_tree_item
+ * elements as children. It is meant to be called recursively when the widget
+ * is built.
  *
  * @param array $element
  *   The main checkbox_tree element.
- * @param $member
+ * @param \FedoraObject $member
  *   A member object. $member->children should be an array of the member
  *   objects that are that term's children.
- * @param $form_state
+ * @param array $form_state
  *   The form state.
- * @param $value
+ * @param array $value
  *   The value of the element.
  * @param int $max_choices
  *   The maximum number of allowed selections.
@@ -284,7 +319,7 @@ function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value
  * @return array
  *   A completed checkbox_tree_level element.
  */
-function _cwrc_islandora_bagit_build_level($element, $member, $form_state, $value, $max_choices, $parent_ids, $depth) {
+function _cwrc_islandora_bagit_build_level($element, $member, $form_state, $value, $max_choices, $parent_ids, $depth, $initial = FALSE) {
   $start_minimized = FALSE;
   if (array_key_exists('#start_minimized', $element)) {
     $start_minimized = $element['#start_minimized'];
@@ -303,10 +338,29 @@ function _cwrc_islandora_bagit_build_level($element, $member, $form_state, $valu
     '#depth' => $depth,
   );
 
-  $container['#level_start_minimized'] = $depth > 1 && $element['#start_minimized'] && !($member->children_selected);
+  $container['#level_start_minimized'] = $depth > 1 && $element['#start_minimized'] && !$member->children_selected;
 
   foreach ($member->children as $child) {
-    $container[$child->id] = _cwrc_islandora_bagit_build_item($element, $child, $form_state, $value, $max_choices, $parent_ids, $container, $depth);
+    $child->is_button = !empty($child->is_button) ? $child->is_button : FALSE;
+    $container[$child->id] = _cwrc_islandora_bagit_build_item($element, $child, $form_state, $value, $max_choices, $parent_ids, $member, $depth);
+  }
+  // Check if all the children are to be processed and if not let add the load
+  // more button as a child element.
+  $members_count = !empty($member->COLLECTION_MEMBERS_COUNT) ? $member->COLLECTION_MEMBERS_COUNT : 0;
+  $processed_members_count = !empty($member->COLLECTION_MEMBERS_COUNT_PROCESSED) ? $member->COLLECTION_MEMBERS_COUNT_PROCESSED : 0;
+  $add_load_more = $members_count !== $processed_members_count && $processed_members_count >= 100;
+  if ($add_load_more) {
+    $button_child = new stdClass();
+    $button_child->id = 'load_more_' . $member->id;
+    $button_child->depth = $depth;
+    $button_child->parent = $member;
+    $button_child->is_button = TRUE;
+    $button_child->children = array();
+    $button_child->children_selected = FALSE;
+    $button_child->COLLECTION_MEMBERS = array();
+    $button_child->COLLECTION_MEMBERS_COUNT = 0;
+    $button_child->COLLECTION_MEMBERS_COUNT_PROCESSED = 0;
+    $container[$button_child->id] = _cwrc_islandora_bagit_build_item($element, $button_child, $form_state, $value, $max_choices, $parent_ids, $member, $depth);
   }
 
   return $container;
@@ -366,4 +420,15 @@ function _cwrc_islandora_bagit_io_checkbox_tree_validate(&$element, &$form_state
 
   form_set_value($element, $value, $form_state);
   return $element;
+}
+
+function _cwrc_islandora_bagit_get_object_name_size_class($object) {
+  $class = 'size';
+  $hide_size = _cwrc_islandora_bagit_object_is_paged_content($object);
+  if (!$hide_size) {
+    $models = !empty($object->models) ? $object->models : array();
+    $hide_size = in_array('islandora:collectionCModel', $models, TRUE);
+  }
+  $class = $hide_size ? $class . ' element-invisible' : $class;
+  return $class;
 }

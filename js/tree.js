@@ -39,7 +39,7 @@
           // Only works with one level of nesting at this time
           $children = $this.parent().siblings('ul').find('input[type=checkbox]');
           $children.each( function(idx, item) {
-            $(item).prop( 'checked', checkedValue );
+            $(item).prop('checked', checkedValue);
           });
         }
         else {
@@ -87,9 +87,81 @@
       });
 
       // Set the main label size on page load.
-      calculateTreeSize(context, module_settings, message_placeholder);
+      // calculateTreeSize(context, module_settings, message_placeholder);
     }
   };
+
+  Drupal.behaviors.cwrcIslandoraBagItTreeSelectAllNone = {
+    attach: function(context, settings) {
+      var module_settings = settings.cwrc_islandora_bagit;
+      var message_placeholder = $('.feedback-placeholder');
+
+      $(document).ajaxComplete(function(e, r, s) {
+        var element_name = s.extraData._triggering_element_name,
+          is_lazy_loader = element_name === 'lazy_load_trigger',
+          lazy_loader_triggered =  is_lazy_loader && s.extraData.lazy_load_trigger === '1',
+          success_request = r.status === 200,
+          noWarning = $('#cwrc-islandora-bagit-max-size-exceeded').length === 0,
+          treeSize = $('.objects-tree-size', context).val(),
+          enableSelAllNone = (lazy_loader_triggered && success_request && noWarning) || treeSize != 0;
+
+        /*
+         * Add Select all/none links to specified checkboxes
+         */
+        var selected = $('.islandora-object-tree.bagit-tree-select-all-none:not(.bagit-tree-processed)');
+        if (selected.length && enableSelAllNone) {
+          var selAll = Drupal.t('Select All');
+          var selNone = Drupal.t('Select None');
+
+          // Set up a prototype link and event handlers.
+          var link = $('<a class="bagit-tree-toggle" href="#">'+ selAll +'</a>');
+          link.click(function(event) {
+            // Don't actually follow the link...
+            event.preventDefault();
+            event.stopPropagation();
+
+            var noneSelected = selAll === $(this).text();
+            $(this).html(noneSelected ? selNone : selAll);
+            $('.bagit-tree-form-checkbox').each(function(index, item) {
+              $(item).prop('checked', noneSelected);
+            });
+
+            // Recalculating and updating the tree size on change.
+            calculateTreeSize(context, module_settings, message_placeholder);
+          });
+
+          // Add link to the page for each set of checkboxes.
+          selected
+            .addClass(function() {
+              // Clone the link prototype and insert into the DOM.
+              var newLink = link.clone(true);
+
+              newLink.insertBefore($('.select-all-none-wrapper', '.form-type-io-checkbox-tree > label'));
+
+              // If all checkboxes are already checked by default then switch to Select None.
+              if ($('input:checkbox:checked', this).length == $('input:checkbox', this).length) {
+                newLink.click();
+              }
+              return 'bagit-tree-processed';
+            });
+        }
+      });
+    }
+  };
+
+  /*
+   * Helper functions
+   */
+
+  /**
+   * Adds/Removes the highlight class from the form-item div as appropriate
+   */
+  function _bagit_tree_highlight(elem, context) {
+    var $elem = $(elem, context);
+    $elem.attr('checked')
+      ? $elem.closest('.form-item', context).addClass('highlight')
+      : $elem.closest('.form-item', context).removeClass('highlight');
+  }
 
   function calculateTreeSize(context, settings, message_placeholder) {
     var treeSize = 0,
@@ -98,7 +170,7 @@
       noWarning = warning.length === 0;
 
     // Set the main label size on page load.
-    $('.islandora-object-item-name', context).each(function (i) {
+    $('.islandora-object-item-name').each(function (i) {
       var form_checkbox = $(this).parent().siblings('.form-checkbox');
       if (form_checkbox.prop('checked')) {
         treeSize += $(this).data('item-size');
@@ -106,7 +178,7 @@
     });
 
     // Updating hidden field value.
-    $('.objects-tree-size', context).val(treeSize);
+    $('.objects-tree-size').val(treeSize);
 
     var reachedMaxSize = treeSize > settings.max_size;
     if (reachedMaxSize && noWarning) {
@@ -117,9 +189,9 @@
       warning.slideUp("slow").remove();
     }
 
-    $('#edit-submit', context).prop('disabled', reachedMaxSize);
-    treeSizeWithUnit = '(' + formatBytes(treeSize) + ')';
-    var treeSizeDomNode = $('.form-type-io-checkbox-tree > label .tree-size');
+    $('#edit-submit').prop('disabled', reachedMaxSize);
+    treeSizeWithUnit = formatBytes(treeSize);
+    var treeSizeDomNode = $('.form-intro span.tree-size');
     treeSizeDomNode.text(treeSizeWithUnit);
   }
 
@@ -265,18 +337,20 @@
           ( item.has('input[type=checkbox]').size() > 0 ) ? 'checkbox' : 'radio';
 
         if(checkbox.attr('checked')) {
-          checkbox.parents('ul.islandora-object-tree-level li').children('div.form-item').children('input[type=checkbox]').each(function() {
-            $(this).attr('checked', checkbox.attr('checked'));
+          checkbox.parents('ul.islandora-object-tree-level li')
+            .children('div.form-item')
+            .children('input[type=checkbox]').each(function() {
+              $(this).attr('checked', checkbox.attr('checked'));
 
-            if(track_list_container) {
-              label_element = $(this).next();
-              addItemToTrackList(
-                track_list_container,         //Where to add new item.
-                label_element.html(),         //Text of new item.
-                $(label_element).attr('for'), //Id of control new item is for.
-                input_type                    //checkbox or radio
-              );
-            }
+              if (track_list_container) {
+                label_element = $(this).next();
+                addItemToTrackList(
+                  track_list_container,         //Where to add new item.
+                  label_element.html(),         //Text of new item.
+                  $(label_element).attr('for'), //Id of control new item is for.
+                  input_type                    //checkbox or radio
+                );
+              }
           });
         }
       }

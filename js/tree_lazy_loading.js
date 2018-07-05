@@ -6,11 +6,12 @@
     attach: function (context, settings) {
       var module_settings = settings.cwrc_islandora_bagit;
       var submit = $('#edit-submit', context);
-      if (module_settings.trigger_lazy_load) {
+      var $lazy_loader = $('.' + module_settings.lazy_load_trigger_class, context);
+      if (module_settings.trigger_lazy_load && !$lazy_loader.hasClass('lazy-load-trigger-processed')) {
         // Triggering the lazy loading of objects tree.
-        $('.' + module_settings.lazy_load_trigger_class, context)
-          .hide()
+        $lazy_loader.hide()
           .prop('checked', true)
+          .addClass('lazy-load-trigger-processed')
           .trigger("change");
         // Disabling the submit button while the js is running.
         submit.hide().prop('disabled', true);
