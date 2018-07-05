@@ -6,9 +6,7 @@ php:
   - 5.6
   - 7.0
   - 7.1
-branches:
-  only:
-    - /^7.x/
+
 env:
   - FEDORA_VERSION="3.5"
   - FEDORA_VERSION="3.6.2"
