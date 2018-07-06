@@ -25,8 +25,21 @@
           success_request = r.status === 200,
           noWarning = $('#cwrc-islandora-bagit-max-size-exceeded').length === 0,
           treeSize = $('.objects-tree-size', context).val(),
-          disableSubmit = !(lazy_loader_triggered && success_request && noWarning) || treeSize == 0;
+          disableSubmit = !(lazy_loader_triggered && success_request && noWarning) || treeSize === 0;
 
+        if (!is_lazy_loader && element_name.startsWith('load-more-')) {
+          var message_error = $('#cwrc-islandora-bagit-tree-checkboxes > div > .messages.error');
+          if (message_error.length !== 0) {
+            var selNoneWarning = Drupal.t('You must keep at least one item selected to load more items. Deselect after loading if desired.');
+            var cleaned_html = message_error.html()
+              .replace(' ( <span class="select-all-none-wrapper"></span> )', '')
+              .replace(' ( &lt;span class="select-all-none-wrapper"&gt;&lt;/span&gt; )', '');
+            message_error.html(cleaned_html);
+            if ($('.select-none-load-more-warning', message_error).length === 0) {
+              message_error.append('<p class="select-none-load-more-warning">' + selNoneWarning + '</p>');
+            }
+          }
+        }
         // Enabling the submit button back.
         submit.show().prop('disabled', disableSubmit);
       });

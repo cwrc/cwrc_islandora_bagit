@@ -112,6 +112,7 @@
 
           // Set up a prototype link and event handlers.
           var link = $('<a class="bagit-tree-toggle" href="#">'+ selAll +'</a>');
+          var selNoneWarning = Drupal.t('You must keep at least one item selected to load more items. Deselect after loading if desired.');
           link.click(function(event) {
             // Don't actually follow the link...
             event.preventDefault();
@@ -119,6 +120,8 @@
 
             var noneSelected = selAll === $(this).text();
             $(this).html(noneSelected ? selNone : selAll);
+            $(this).attr('title', noneSelected ? selNoneWarning : '');
+
             $('.bagit-tree-form-checkbox').each(function(index, item) {
               $(item).prop('checked', noneSelected);
             });

@@ -258,6 +258,9 @@ function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value
       '#tree_parent' => $member->parent,
       '#tree_parent_depth' => $depth,
       '#submit' => $element['#tree_load_more_submit'],
+      '#attributes' => array(
+        'class' => array('islandora-object-tree-load-more-button'),
+      ),
       '#ajax' => array(
         'callback' => $element['#tree_load_more_callback'],
         'wrapper' => $element['#tree_load_more_wrapper'],

@@ -301,6 +301,12 @@ function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
   if (!empty($triggering_element['#tree_parent']) || $triggering_element['#type'] === 'checkbox') {
     return;
   }
+
+  if (!empty($triggering_element['#tree_parent']) && (empty($form_state['values']['objects_tree']) || empty($form_state['bagit_values']['objects_tree']))) {
+    form_set_error(array(), t('You must keep at least one item selected to load more items.'));
+    return;
+  }
+
   $tree_size = isset($form_state['values']['objects_tree_size']) ? $form_state['values']['objects_tree_size'] : 0;
   if ($tree_size > CWRC_ISLANDORA_BAGIT_MAX_COLLECTION_SIZE) {
     form_set_error(array(), _cwrc_islandora_bagit_max_collection_size_message());
