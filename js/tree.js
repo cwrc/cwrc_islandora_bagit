@@ -17,9 +17,9 @@
         // On page load, check whether the maximum number of choices is already selected.
         // If so, disable the other options.
         var tree = $(this);
-        checkMaxChoices(tree, false);
+        check_max_choices(tree, false);
         $(this).find('input[type=checkbox]').change(function() {
-          checkMaxChoices(tree, $(this));
+          check_max_choices(tree, $(this));
         });
       });
 
@@ -83,11 +83,8 @@
           }
         }
         // Recalculating and updating the tree size on change
-        calculateTreeSize(context, module_settings, message_placeholder);
+        calculate_tree_size(context, module_settings, message_placeholder);
       });
-
-      // Set the main label size on page load.
-      // calculateTreeSize(context, module_settings, message_placeholder);
     }
   };
 
@@ -127,7 +124,7 @@
             });
 
             // Recalculating and updating the tree size on change.
-            calculateTreeSize(context, module_settings, message_placeholder);
+            calculate_tree_size(context, module_settings, message_placeholder);
           });
 
           // Add link to the page for each set of checkboxes.
@@ -139,7 +136,7 @@
               newLink.insertBefore($('.select-all-none-wrapper', '.form-type-io-checkbox-tree > label'));
 
               // If all checkboxes are already checked by default then switch to Select None.
-              if ($('input:checkbox:checked', this).length == $('input:checkbox', this).length) {
+              if ($('input:checkbox:checked', this).length === $('input:checkbox', this).length) {
                 newLink.click();
               }
               return 'bagit-tree-processed';
@@ -153,17 +150,7 @@
    * Helper functions
    */
 
-  /**
-   * Adds/Removes the highlight class from the form-item div as appropriate
-   */
-  function _bagit_tree_highlight(elem, context) {
-    var $elem = $(elem, context);
-    $elem.attr('checked')
-      ? $elem.closest('.form-item', context).addClass('highlight')
-      : $elem.closest('.form-item', context).removeClass('highlight');
-  }
-
-  function calculateTreeSize(context, settings, message_placeholder) {
+  function calculate_tree_size(context, settings, message_placeholder) {
     var treeSize = 0,
       treeSizeWithUnit,
       warning = $('#cwrc-islandora-bagit-max-size-exceeded'),
@@ -190,7 +177,7 @@
     }
 
     $('#edit-submit').prop('disabled', reachedMaxSize);
-    treeSizeWithUnit = formatBytes(treeSize);
+    treeSizeWithUnit = format_bytes(treeSize);
     var treeSizeDomNode = $('.form-intro span.tree-size');
     treeSizeDomNode.text(treeSizeWithUnit);
   }
@@ -208,7 +195,7 @@
    *
    * @param control_type Control type - 'checkbox' or 'radio'.
    */
-  function addItemToTrackList(track_list_container, item_text, control_id, control_type) {
+  function add_item_to_track_list(track_list_container, item_text, control_id, control_type) {
     var new_item = $('<li class="track-item">' + item_text + '</li>');
     new_item.data('control_id', control_id);
 
@@ -271,51 +258,11 @@
   }
 
   /**
-   * Show the 'nothing selected' message if it applies.
-   *
-   * @param track_list_container Where the message is to be shown.
-   */
-  function showNothingSelectedMessage(track_list_container) {
-    //Is the message there already?
-    var message_showing =
-      (track_list_container.find('.term_ref_tree_nothing_message').size() != 0);
-
-    //Number of real items showing.
-    var num_real_items_showing =
-      message_showing
-        ? track_list_container.find('li').size() - 1
-        : track_list_container.find('li').size();
-    if ( num_real_items_showing == 0 ) {
-      //No items showing, so show the message.
-      if ( ! message_showing ) {
-        track_list_container.append(
-          '<li class="term_ref_tree_nothing_message">' + termReferenceTreeNothingSelectedText + '</li>'
-        );
-      }
-    }
-    else { // !(num_real_items_showing == 0)
-      //There are real items.
-      if ( message_showing ) {
-        track_list_container.find('.term_ref_tree_nothing_message').remove();
-      }
-    }
-  }
-
-  /**
-   * Remove the 'nothing selected' message. Makes processing easier.
-   *
-   * @param track_list_container Where the message is shown.
-   */
-  function removeNothingSelectedMessage(track_list_container) {
-    track_list_container.find('.term_ref_tree_nothing_message').remove();
-  }
-
-  /**
    * This helper function checks if the maximum number of choices is already
    * selected. If so, it disables all the other options.  If not, it enables
    * them.
    */
-  function checkMaxChoices(item, checkbox) {
+  function check_max_choices(item, checkbox) {
     var maxChoices = -1;
     try {
       maxChoices = parseInt(Drupal.settings.cwrc_islandora_bagit.trees[item.attr('id')]['max_choices']);
@@ -344,7 +291,7 @@
 
               if (track_list_container) {
                 label_element = $(this).next();
-                addItemToTrackList(
+                add_item_to_track_list(
                   track_list_container,         //Where to add new item.
                   label_element.html(),         //Text of new item.
                   $(label_element).attr('for'), //Id of control new item is for.
@@ -357,7 +304,13 @@
     }
   }
 
-  function formatBytes(bytes, decimals) {
+  /**
+   * Format the
+   * @param bytes
+   * @param decimals
+   * @returns {string}
+   */
+  function format_bytes(bytes, decimals) {
     if(bytes == 0) return '0 Bytes';
     var k = 1024,
       dm = decimals || 2,

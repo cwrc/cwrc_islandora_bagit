@@ -31,7 +31,7 @@
         submit.show().prop('disabled', disableSubmit);
       });
 
-      function onFormSubmit(e) {
+      function on_form_submit(e) {
         var $form = $(e.currentTarget);
         var formValues = $form.serialize();
         var previousValues = $form.attr('data-drupal-form-submit-last');
@@ -43,7 +43,7 @@
         }
       }
       // Preventing double click submit.
-      $('body').once('form-single-submit').on('submit.singleSubmit', 'form:not([method~="GET"])', onFormSubmit);
+      $('body').once('form-single-submit').on('submit.singleSubmit', 'form:not([method~="GET"])', on_form_submit);
     }
   };
 })(jQuery, Drupal);
