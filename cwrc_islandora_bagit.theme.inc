@@ -7,17 +7,8 @@
 
 /**
  * Returns HTML for a io_checkbox_tree form element.
- *
- * @param array $variables
- *   An associative array containing:
- *   - element: An associative array containing the properties of the element.
- *
- * @return string
- *   The checkbox tree.
- *
- * @ingroup themeable
  */
-function theme_io_checkbox_tree(array $variables) {
+function theme_io_checkbox_tree($variables) {
   $element = $variables['element'];
   $element['#children'] = drupal_render_children($element);
 
@@ -62,7 +53,7 @@ function theme_io_checkbox_tree(array $variables) {
 /**
  * Put checkboxes under an unordered list.
  */
-function theme_io_checkbox_tree_level(array $variables) {
+function theme_io_checkbox_tree_level($variables) {
   $element = $variables['element'];
   $depth = $element['#depth'];
   $sm = '';
@@ -267,7 +258,6 @@ function _cwrc_islandora_bagit_build_item($element, $member, $form_state, $value
       '#tree_parent' => $member->parent,
       '#tree_parent_depth' => $depth,
       '#submit' => $element['#tree_load_more_submit'],
-//      '#limit_validation_errors' => array(),
       '#ajax' => array(
         'callback' => $element['#tree_load_more_callback'],
         'wrapper' => $element['#tree_load_more_wrapper'],

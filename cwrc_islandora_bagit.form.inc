@@ -355,12 +355,12 @@ function cwrc_islandora_bagit_create_bag_form_submit($form, &$form_state) {
 function _cwrc_islandora_bagit_get_objects_to_bag($tree_hierarchy_objects, $object_ids) {
   $objects_to_bag = array();
 
-  foreach ($tree_hierarchy_objects as $fedoraObject) {
-    $id = $fedoraObject->id;
+  foreach ($tree_hierarchy_objects as $fedora_object) {
+    $id = $fedora_object->id;
     if (isset($object_ids[$id])) {
-      $objects_to_bag[$id] = $fedoraObject;
+      $objects_to_bag[$id] = $fedora_object;
     }
-    $children_to_bag = _cwrc_islandora_bagit_get_objects_to_bag($fedoraObject->children, $object_ids);
+    $children_to_bag = _cwrc_islandora_bagit_get_objects_to_bag($fedora_object->children, $object_ids);
     $objects_to_bag = array_merge($objects_to_bag, $children_to_bag);
   }
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project name="cwrc_islandora_bagit" default="build">
-  <target name="build" depends="clean,prepare,lint,phploc,code_sniff,phpcpd,pdepend,doxygen,phpcb" />
+  <target name="build" depends="clean,prepare,lint,phploc,code_sniff,phpcpd,pdepend,phpcb" />
 
   <target name="clean" description="Cleanup build artifacts">
       <delete dir="${basedir}/build/test" />
