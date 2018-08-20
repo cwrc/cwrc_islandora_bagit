@@ -326,7 +326,7 @@ function cwrc_islandora_bagit_create_bag_form_validate($form, &$form_state) {
  */
 function cwrc_islandora_bagit_create_bag_form_submit($form, &$form_state) {
   $triggering_element = $form_state['triggering_element'];
-  if (!empty($triggering_element['#tree_parent']) || empty($form_state['bagit_values']['objects_tree'])) {
+  if (!empty($triggering_element['#tree_parent']) || empty($form_state['values']['objects_tree'])) {
     return;
   }
 
